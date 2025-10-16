@@ -23,13 +23,20 @@ document.addEventListener("DOMContentLoaded", () => {
         // Format participants list
         let participantsList = '';
         if (details.participants.length > 0) {
-          const participantItems = details.participants.map(email => `<li>${email}</li>`).join('');
+          const participantItems = details.participants.map(email => 
+            `<div class="participant-item">
+              <span class="participant-email">${email}</span>
+              <button class="delete-btn" onclick="unregisterParticipant('${name}', '${email}')" title="Remove participant">
+                ❌
+              </button>
+            </div>`
+          ).join('');
           participantsList = `
             <div class="participants-section">
               <p><strong>Current Participants:</strong></p>
-              <ul class="participants-list">
+              <div class="participants-list">
                 ${participantItems}
-              </ul>
+              </div>
             </div>
           `;
         } else {
@@ -84,6 +91,8 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        // Refresh activities to show updated participant list
+        fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
@@ -106,3 +115,102 @@ document.addEventListener("DOMContentLoaded", () => {
   // Initialize app
   fetchActivities();
 });
+
+// Function to unregister a participant
+async function unregisterParticipant(activityName, email) {
+  const messageDiv = document.getElementById("message");
+  
+  try {
+    const response = await fetch(
+      `/activities/${encodeURIComponent(activityName)}/unregister?email=${encodeURIComponent(email)}`,
+      {
+        method: "DELETE",
+      }
+    );
+
+    const result = await response.json();
+
+    if (response.ok) {
+      messageDiv.textContent = result.message;
+      messageDiv.className = "success";
+      // Refresh activities to show updated participant list
+      const activitiesList = document.getElementById("activities-list");
+      const activitySelect = document.getElementById("activity");
+      
+      // Re-fetch and update activities display
+      const activitiesResponse = await fetch("/activities");
+      const activities = await activitiesResponse.json();
+
+      // Clear and repopulate activities list
+      activitiesList.innerHTML = "";
+      // Clear activity select options (except the first placeholder)
+      activitySelect.innerHTML = '<option value="">-- Select an activity --</option>';
+
+      Object.entries(activities).forEach(([name, details]) => {
+        const activityCard = document.createElement("div");
+        activityCard.className = "activity-card";
+
+        const spotsLeft = details.max_participants - details.participants.length;
+        
+        // Format participants list
+        let participantsList = '';
+        if (details.participants.length > 0) {
+          const participantItems = details.participants.map(email => 
+            `<div class="participant-item">
+              <span class="participant-email">${email}</span>
+              <button class="delete-btn" onclick="unregisterParticipant('${name}', '${email}')" title="Remove participant">
+                ❌
+              </button>
+            </div>`
+          ).join('');
+          participantsList = `
+            <div class="participants-section">
+              <p><strong>Current Participants:</strong></p>
+              <div class="participants-list">
+                ${participantItems}
+              </div>
+            </div>
+          `;
+        } else {
+          participantsList = `
+            <div class="participants-section">
+              <p><strong>Current Participants:</strong></p>
+              <p class="no-participants">No participants yet - be the first to sign up!</p>
+            </div>
+          `;
+        }
+
+        activityCard.innerHTML = `
+          <h4>${name}</h4>
+          <p>${details.description}</p>
+          <p><strong>Schedule:</strong> ${details.schedule}</p>
+          <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
+          ${participantsList}
+        `;
+
+        activitiesList.appendChild(activityCard);
+
+        // Add option to select dropdown
+        const option = document.createElement("option");
+        option.value = name;
+        option.textContent = name;
+        activitySelect.appendChild(option);
+      });
+    } else {
+      messageDiv.textContent = result.detail || "An error occurred";
+      messageDiv.className = "error";
+    }
+
+    messageDiv.classList.remove("hidden");
+
+    // Hide message after 5 seconds
+    setTimeout(() => {
+      messageDiv.classList.add("hidden");
+    }, 5000);
+  } catch (error) {
+    messageDiv.textContent = "Failed to unregister. Please try again.";
+    messageDiv.className = "error";
+    messageDiv.classList.remove("hidden");
+    console.error("Error unregistering:", error);
+  }
+}
